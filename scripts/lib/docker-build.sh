@@ -32,6 +32,15 @@ docker_build_command() {
     if [ -n "${OPENCLAW_DOCKER_BUILD_CACHE_TO:-}" ]; then
       build_cmd+=(--cache-to "${OPENCLAW_DOCKER_BUILD_CACHE_TO}")
     fi
+    if [ -n "${OPENCLAW_DOCKER_BUILD_MEMORY:-}" ]; then
+      build_cmd+=(--memory "${OPENCLAW_DOCKER_BUILD_MEMORY}")
+    fi
+    if [ -n "${OPENCLAW_DOCKER_BUILD_MEMORY_SWAP:-}" ]; then
+      build_cmd+=(--memory-swap "${OPENCLAW_DOCKER_BUILD_MEMORY_SWAP}")
+    fi
+    if [ -n "${OPENCLAW_DOCKER_BUILD_CPUS:-}" ]; then
+      build_cmd+=(--cpus "${OPENCLAW_DOCKER_BUILD_CPUS}")
+    fi
   fi
 
   printf '%s\0' env DOCKER_BUILDKIT=1 "${build_cmd[@]}" "$@"
