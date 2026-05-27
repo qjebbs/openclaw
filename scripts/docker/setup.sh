@@ -18,6 +18,12 @@ DOCKER_SOCKET_PATH="${OPENCLAW_DOCKER_SOCKET:-}"
 TIMEZONE="${OPENCLAW_TZ:-}"
 RAW_SKIP_ONBOARDING="${OPENCLAW_SKIP_ONBOARDING:-}"
 SKIP_ONBOARDING=""
+RAW_CLOAK_HUMANIZE="${OPENCLAW_CLOAK_HUMANIZE:-}"
+RAW_CLOAK_HUMAN_PRESET="${OPENCLAW_CLOAK_HUMAN_PRESET:-}"
+RAW_CLOAK_HUMAN_CONFIG="${OPENCLAW_CLOAK_HUMAN_CONFIG:-}"
+CLOAK_HUMANIZE=""
+CLOAK_HUMAN_PRESET=""
+CLOAK_HUMAN_CONFIG=""
 DOCKER_PULL_TIMEOUT="${OPENCLAW_DOCKER_SETUP_PULL_TIMEOUT:-600s}"
 OFFLINE_MODE=""
 DEFAULT_SANDBOX_IMAGE="openclaw-sandbox:bookworm-slim"
@@ -74,6 +80,34 @@ is_truthy_value() {
     1 | true | yes | on) return 0 ;;
     *) return 1 ;;
   esac
+}
+
+is_falsy_value() {
+  local raw="${1:-}"
+  raw="$(printf '%s' "$raw" | tr '[:upper:]' '[:lower:]')"
+  case "$raw" in
+    0 | false | no | off) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+is_valid_json_value() {
+  local value="$1"
+  if command -v node >/dev/null 2>&1; then
+    node -e 'JSON.parse(process.argv[1])' "$value" >/dev/null 2>&1
+    return $?
+  fi
+  if command -v python3 >/dev/null 2>&1; then
+    python3 - "$value" <<'PY' >/dev/null 2>&1
+import json
+import sys
+
+json.loads(sys.argv[1])
+PY
+    return $?
+  fi
+  echo "WARNING: Cannot validate OPENCLAW_CLOAK_HUMAN_CONFIG JSON (node/python3 not found)." >&2
+  return 0
 }
 
 has_docker_image() {
@@ -497,6 +531,27 @@ fi
 if is_truthy_value "$RAW_SKIP_ONBOARDING"; then
   SKIP_ONBOARDING="1"
 fi
+if [[ -n "$RAW_CLOAK_HUMANIZE" ]]; then
+  if is_truthy_value "$RAW_CLOAK_HUMANIZE"; then
+    CLOAK_HUMANIZE="1"
+  elif is_falsy_value "$RAW_CLOAK_HUMANIZE"; then
+    CLOAK_HUMANIZE="0"
+  else
+    fail "OPENCLAW_CLOAK_HUMANIZE must be one of: 1/0, true/false, yes/no, on/off."
+  fi
+fi
+if [[ -n "$RAW_CLOAK_HUMAN_PRESET" ]]; then
+  case "$RAW_CLOAK_HUMAN_PRESET" in
+    default | careful) CLOAK_HUMAN_PRESET="$RAW_CLOAK_HUMAN_PRESET" ;;
+    *) fail "OPENCLAW_CLOAK_HUMAN_PRESET must be either 'default' or 'careful'." ;;
+  esac
+fi
+if [[ -n "$RAW_CLOAK_HUMAN_CONFIG" ]]; then
+  if ! is_valid_json_value "$RAW_CLOAK_HUMAN_CONFIG"; then
+    fail "OPENCLAW_CLOAK_HUMAN_CONFIG must be valid JSON."
+  fi
+  CLOAK_HUMAN_CONFIG="$RAW_CLOAK_HUMAN_CONFIG"
+fi
 
 OPENCLAW_CONFIG_DIR="${OPENCLAW_CONFIG_DIR:-$HOME/.openclaw}"
 OPENCLAW_WORKSPACE_DIR="${OPENCLAW_WORKSPACE_DIR:-$HOME/.openclaw/workspace}"
@@ -557,6 +612,9 @@ export OPENCLAW_INSTALL_BROWSER="${OPENCLAW_INSTALL_BROWSER:-}"
 export OPENCLAW_EXTRA_MOUNTS="$EXTRA_MOUNTS"
 export OPENCLAW_HOME_VOLUME="$HOME_VOLUME_NAME"
 export OPENCLAW_ALLOW_INSECURE_PRIVATE_WS="${OPENCLAW_ALLOW_INSECURE_PRIVATE_WS:-}"
+export OPENCLAW_CLOAK_HUMANIZE="$CLOAK_HUMANIZE"
+export OPENCLAW_CLOAK_HUMAN_PRESET="$CLOAK_HUMAN_PRESET"
+export OPENCLAW_CLOAK_HUMAN_CONFIG="$CLOAK_HUMAN_CONFIG"
 export OPENCLAW_SANDBOX="$SANDBOX_ENABLED"
 export OPENCLAW_DOCKER_SOCKET="$DOCKER_SOCKET_PATH"
 export OPENCLAW_DOCKER_SETUP=1
@@ -776,6 +834,9 @@ upsert_env "$ENV_FILE" \
   DOCKER_GID \
   OPENCLAW_INSTALL_DOCKER_CLI \
   OPENCLAW_ALLOW_INSECURE_PRIVATE_WS \
+  OPENCLAW_CLOAK_HUMANIZE \
+  OPENCLAW_CLOAK_HUMAN_PRESET \
+  OPENCLAW_CLOAK_HUMAN_CONFIG \
   OPENCLAW_TZ \
   OTEL_EXPORTER_OTLP_ENDPOINT \
   OTEL_EXPORTER_OTLP_TRACES_ENDPOINT \

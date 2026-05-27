@@ -89,6 +89,7 @@ minimumReleaseAgeExclude:
   - "sqlite-vec-*"
   - "rastermill"
   - "clawpdf"
+  - cloakbrowser@0.3.31
 
 nodeLinker: hoisted
 blockExoticSubdeps: true

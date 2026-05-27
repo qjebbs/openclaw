@@ -6,6 +6,7 @@
   "type": "module",
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.29.0",
+    "cloakbrowser": "0.3.31",
     "commander": "14.0.3",
     "express": "5.2.1",
     "playwright-core": "1.60.0",

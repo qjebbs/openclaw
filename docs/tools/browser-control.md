@@ -132,6 +132,34 @@ To persist browser downloads, set `PLAYWRIGHT_BROWSERS_PATH` (for example,
 `OPENCLAW_HOME_VOLUME` or a bind mount. OpenClaw auto-detects the persisted
 Chromium on Linux. See [Docker](/install/docker).
 
+### Optional CloakBrowser humanize patch
+
+OpenClaw can optionally patch Playwright CDP sessions with CloakBrowser's
+`cloakbrowser/human` runtime hooks.
+
+- This is disabled by default.
+- It applies only when OpenClaw successfully connects to CDP via Playwright.
+
+Enable it with environment variables:
+
+```bash
+OPENCLAW_CLOAK_HUMANIZE=1
+# Accepts "default" or "careful", defaults to `default` when unset.
+OPENCLAW_CLOAK_HUMAN_PRESET=default
+# Optional JSON override (string form)
+OPENCLAW_CLOAK_HUMAN_CONFIG='{"typing_delay":90,"mistype_chance":0.03}'
+```
+
+Practical scope note:
+
+- `OPENCLAW_CLOAK_HUMANIZE` is most meaningful when the connected CDP endpoint
+  is provided by Cloak Browser (or another runtime that already handles
+  low-level fingerprint hardening).
+- Against a plain Chrome CDP endpoint, the humanize patch can still improve
+  behavior-level signals, but static CDP/browser fingerprint traits remain
+  obvious enough that many anti-bot systems can still classify the session as
+  automation.
+
 ## How it works (internal)
 
 A small loopback control server accepts HTTP requests and connects to Chromium-based browsers via CDP. Advanced actions (click/type/snapshot/PDF) go through Playwright on top of CDP; when Playwright is missing, only non-Playwright operations are available. The agent sees one stable interface while local/remote browsers and profiles swap freely underneath.
