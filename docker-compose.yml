@@ -3,7 +3,7 @@ services:
     image: ${OPENCLAW_IMAGE:-openclaw:local}
     build: .
     env_file:
-      - path: .env
+      - path: ${OPENCLAW_CONFIG_DIR:-${HOME:-/tmp}/.openclaw}/.env
         required: false
     environment:
       HOME: /home/node
@@ -93,7 +93,7 @@ services:
     image: ${OPENCLAW_IMAGE:-openclaw:local}
     network_mode: "service:openclaw-gateway"
     env_file:
-      - path: .env
+      - path: ${OPENCLAW_CONFIG_DIR:-${HOME:-/tmp}/.openclaw}/.env
         required: false
     cap_drop:
       - NET_RAW

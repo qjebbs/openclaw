@@ -7,6 +7,8 @@ source "$ROOT_DIR/scripts/lib/host-timeout.sh"
 COMPOSE_FILE="$ROOT_DIR/docker-compose.yml"
 EXTRA_COMPOSE_FILE="$ROOT_DIR/docker-compose.extra.yml"
 IMAGE_NAME="${OPENCLAW_IMAGE:-openclaw:local}"
+RAW_NO_UPDATE_IMAGE="${OPENCLAW_NO_UPDATE_IMAGE:-0}"
+UPDATE_IMAGE="1"
 EXTRA_MOUNTS="${OPENCLAW_EXTRA_MOUNTS:-}"
 HOME_VOLUME_NAME="${OPENCLAW_HOME_VOLUME:-}"
 RAW_SANDBOX_SETTING="${OPENCLAW_SANDBOX:-}"
@@ -71,6 +73,14 @@ is_truthy_value() {
     1 | true | yes | on) return 0 ;;
     *) return 1 ;;
   esac
+}
+
+has_docker_image() {
+  local image="$1"
+  if docker image inspect "$image" >/dev/null 2>&1; then
+    return 0
+  fi
+  return 1
 }
 
 read_config_gateway_token() {
@@ -676,7 +686,7 @@ for compose_file in "${COMPOSE_FILES[@]}"; do
   COMPOSE_HINT+=" -f ${compose_file}"
 done
 
-ENV_FILE="$ROOT_DIR/.env"
+ENV_FILE="$OPENCLAW_CONFIG_DIR/.env"
 upsert_env() {
   local file="$1"
   shift
@@ -749,6 +759,11 @@ upsert_env "$ENV_FILE" \
   OPENCLAW_OTEL_PRELOADED \
   OPENCLAW_SKIP_ONBOARDING
 
+if is_truthy_value "$RAW_NO_UPDATE_IMAGE"; then
+  UPDATE_IMAGE=""
+fi
+
+if [[ -n "$UPDATE_IMAGE" ]] || ! has_docker_image "$IMAGE_NAME"; then
 if [[ -n "$OFFLINE_MODE" ]]; then
   require_local_docker_image "$IMAGE_NAME"
   echo "==> Using preloaded Docker image: $IMAGE_NAME"
@@ -772,6 +787,7 @@ else
     echo "ERROR: Failed to pull image $IMAGE_NAME. Please check the image name and your access permissions." >&2
     exit 1
   fi
+fi
 fi
 
 # Ensure bind-mounted data directories are writable by the container's `node`
@@ -849,6 +865,7 @@ if [[ -n "$SANDBOX_ENABLED" ]]; then
   echo ""
   echo "==> Sandbox setup"
 
+  if [[ -n "$UPDATE_IMAGE" ]] || ! has_docker_image "openclaw-sandbox:bookworm-slim"; then
   sandbox_dockerfile="$ROOT_DIR/scripts/docker/sandbox/Dockerfile"
   if [[ -z "$OFFLINE_MODE" && ! -S "$DOCKER_SOCKET_PATH" ]]; then
     echo "WARNING: OPENCLAW_SANDBOX enabled but Docker socket not found at $DOCKER_SOCKET_PATH." >&2
@@ -866,6 +883,7 @@ if [[ -n "$SANDBOX_ENABLED" ]]; then
     echo "WARNING: sandbox Dockerfile not found at $sandbox_dockerfile" >&2
     echo "  Sandbox config will be applied but no sandbox image will be built." >&2
     echo "  Agent exec may fail if the configured sandbox image does not exist." >&2
+  fi
   fi
 
   # Defense-in-depth: verify Docker CLI in the running image before enabling
