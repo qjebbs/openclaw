@@ -10,6 +10,7 @@ IMAGE_NAME="${OPENCLAW_IMAGE:-openclaw:local}"
 RAW_NO_UPDATE_IMAGE="${OPENCLAW_NO_UPDATE_IMAGE:-0}"
 UPDATE_IMAGE="1"
 EXTRA_MOUNTS="${OPENCLAW_EXTRA_MOUNTS:-}"
+EXTRA_PORTS=()
 HOME_VOLUME_NAME="${OPENCLAW_HOME_VOLUME:-}"
 RAW_SANDBOX_SETTING="${OPENCLAW_SANDBOX:-}"
 SANDBOX_ENABLED=""
@@ -460,6 +461,24 @@ quote_yaml_string() {
   printf '"%s"' "$value"
 }
 
+# Collect extra port mappings from non-empty port arguments.
+# Each non-empty argument is added as "${port}:${port}" to EXTRA_PORTS so
+# write_extra_compose can emit host-port bindings only when the user
+# explicitly set the corresponding environment variable.
+collect_extra_ports() {
+  local port
+  for port in "$@"; do
+    if [[ -n "$port" ]]; then
+      EXTRA_PORTS+=("${port}:${port}")
+    fi
+  done
+}
+
+# Collect extra host-port bindings for optional services.
+# Only adds a mapping when the corresponding env var is non-empty,
+# avoiding unnecessary host-port exposure when the service is not in use.
+collect_extra_ports "${OPENCLAW_BRIDGE_PORT:-}" "${OPENCLAW_MSTEAMS_PORT:-}"
+
 require_cmd docker
 if ! docker compose version >/dev/null 2>&1; then
   echo "Docker Compose not available (try: docker compose version)" >&2
@@ -620,6 +639,15 @@ YAML
     printf '      - %s\n' "$(quote_yaml_string "$mount")" >>"$EXTRA_COMPOSE_FILE"
   done
 
+  # Add extra port mappings when the user explicitly set the corresponding
+  # environment variables, avoiding unnecessary host-port exposure.
+  if [[ ${#EXTRA_PORTS[@]} -gt 0 ]]; then
+    printf '    ports:\n' >>"$EXTRA_COMPOSE_FILE"
+    for port in "${EXTRA_PORTS[@]}"; do
+      printf '      - "%s"\n' "$port" >>"$EXTRA_COMPOSE_FILE"
+    done
+  fi
+
   cat >>"$EXTRA_COMPOSE_FILE" <<'YAML'
   openclaw-cli:
     volumes:
@@ -666,7 +694,7 @@ if [[ -n "$EXTRA_MOUNTS" ]]; then
   done
 fi
 
-if [[ -n "$HOME_VOLUME_NAME" || ${#VALID_MOUNTS[@]} -gt 0 ]]; then
+if [[ -n "$HOME_VOLUME_NAME" || ${#VALID_MOUNTS[@]} -gt 0 || ${#EXTRA_PORTS[@]} -gt 0 ]]; then
   # Bash 3.2 + nounset treats "${array[@]}" on an empty array as unbound.
   if [[ ${#VALID_MOUNTS[@]} -gt 0 ]]; then
     write_extra_compose "$HOME_VOLUME_NAME" "${VALID_MOUNTS[@]}"
